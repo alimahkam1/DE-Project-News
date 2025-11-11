@@ -6,13 +6,13 @@ import functions_framework
 
 # --- GCP Project Config (Set these as Environment Variables) ---
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
-PUB_SUB_TOPIC = os.environ.get("PUB_SUB_TOPIC") # e.g., "iss-location-raw"
+PUB_SUB_TOPIC = os.environ.get("PUB_SUB_TOPIC") 
 
 # --- Initialize clients ---
 publisher_client = pubsub_v1.PublisherClient()
 topic_path = publisher_client.topic_path(PROJECT_ID, PUB_SUB_TOPIC)
 
-# --- The API URL (no key needed) ---
+# --- The API URL ---
 ISS_API_URL = "http://api.open-notify.org/iss-now.json"
 
 @functions_framework.http
