@@ -4,15 +4,10 @@ import json
 from google.cloud import pubsub_v1
 import functions_framework
 
-# --- GCP Project Config (Set these as Environment Variables) ---
-PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
-PUB_SUB_TOPIC = os.environ.get("PUB_SUB_TOPIC") 
-
-# --- Initialize clients ---
+# --- Initialize clients in global scope (this is safe) ---
 publisher_client = pubsub_v1.PublisherClient()
-topic_path = publisher_client.topic_path(PROJECT_ID, PUB_SUB_TOPIC)
 
-# --- The API URL ---
+# --- The API URL (no key needed) ---
 ISS_API_URL = "http://api.open-notify.org/iss-now.json"
 
 @functions_framework.http
@@ -21,12 +16,25 @@ def poll_iss_and_publish(request):
     HTTP-triggered Cloud Run function.
     Polls the ISS API for its current location and publishes to Pub/Sub.
     """
+
+    # --- Get env variables INSIDE the function ---
+    try:
+        PROJECT_ID = os.environ["GCP_PROJECT_ID"]
+        PUB_SUB_TOPIC = os.environ["PUB_SUB_TOPIC"]
+
+        # Build the topic path *inside* the function
+        topic_path = publisher_client.topic_path(PROJECT_ID, PUB_SUB_TOPIC)
+
+    except KeyError as e:
+        # This gives us a clear error if a variable is missing!
+        print(f"CRITICAL ERROR: Environment variable {e} is not set.")
+        return f"Error: Missing configuration {e}", 500
+
     try:
         response = requests.get(ISS_API_URL)
         response.raise_for_status() # Raise an error on a bad response
         data = response.json()
 
-        # We only care about the 'iss_position' and 'timestamp'
         if data.get("message") == "success":
             message_data = {
                 "latitude": data.get("iss_position", {}).get("latitude"),
@@ -34,10 +42,7 @@ def poll_iss_and_publish(request):
                 "timestamp": data.get("timestamp")
             }
 
-            # Convert to JSON and then to bytes for Pub/Sub
             message_bytes = json.dumps(message_data).encode("utf-8")
-
-            # Publish the message
             future = publisher_client.publish(topic_path, data=message_bytes)
             print(f"Published ISS location: {message_data}")
 
